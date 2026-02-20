@@ -11,9 +11,10 @@ const BatchPage = () => {
     // Form state
     const [batchName, setBatchName] = useState('');
     const [batchInvestment, setBatchInvestment] = useState('');
+    const [batchFromCash, setBatchFromCash] = useState(false);
     const [batchDescription, setBatchDescription] = useState('');
     const [batchProducts, setBatchProducts] = useState([
-        { name: '', selling_price: '', current_stock: '' }
+        { name: '', selling_price: '', current_stock: '', image_url: '' }
     ]);
 
     // Edit state
@@ -24,7 +25,11 @@ const BatchPage = () => {
 
     // Add product to existing batch
     const [addingToBatch, setAddingToBatch] = useState(null);
-    const [newProduct, setNewProduct] = useState({ name: '', selling_price: '', current_stock: '' });
+    const [newProduct, setNewProduct] = useState({ name: '', selling_price: '', current_stock: '', image_url: '' });
+
+    // Add investment to existing batch
+    const [addingInvestmentTo, setAddingInvestmentTo] = useState(null);
+    const [newInvestment, setNewInvestment] = useState({ amount: '', description: '', from_cash: false });
 
     useEffect(() => { loadBatches(); }, []);
 
@@ -69,15 +74,17 @@ const BatchPage = () => {
                 name: batchName,
                 total_investment: parseFloat(batchInvestment),
                 description: batchDescription,
+                from_cash: batchFromCash,
                 products: validProducts.map(p => ({
                     name: p.name,
                     selling_price: parseFloat(p.selling_price),
-                    current_stock: parseInt(p.current_stock) || 0
+                    current_stock: parseInt(p.current_stock) || 0,
+                    image_url: p.image_url
                 }))
             });
             alert('¡Lote creado!');
             setShowForm(false);
-            setBatchName(''); setBatchInvestment(''); setBatchDescription('');
+            setBatchName(''); setBatchInvestment(''); setBatchDescription(''); setBatchFromCash(false);
             setBatchProducts([{ name: '', selling_price: '', current_stock: '' }]);
             loadBatches();
         } catch (error) {
@@ -111,7 +118,8 @@ const BatchPage = () => {
         setEditProductForm({
             name: product.name,
             selling_price: product.selling_price,
-            current_stock: product.current_stock
+            current_stock: product.current_stock,
+            image_url: product.image_url || ''
         });
     };
 
@@ -135,10 +143,11 @@ const BatchPage = () => {
             await api.post(`/batches/${batchId}/products`, {
                 name: newProduct.name,
                 selling_price: parseFloat(newProduct.selling_price),
-                current_stock: parseInt(newProduct.current_stock) || 0
+                current_stock: parseInt(newProduct.current_stock) || 0,
+                image_url: newProduct.image_url
             });
             setAddingToBatch(null);
-            setNewProduct({ name: '', selling_price: '', current_stock: '' });
+            setNewProduct({ name: '', selling_price: '', current_stock: '', image_url: '' });
             loadBatches();
         } catch (error) {
             alert('Error al agregar producto');
@@ -162,6 +171,25 @@ const BatchPage = () => {
             loadBatches();
         } catch (error) {
             alert('Error al eliminar lote');
+        }
+    };
+
+    const handleAddInvestment = async (batchId) => {
+        if (!newInvestment.amount) {
+            alert('El monto es obligatorio');
+            return;
+        }
+        try {
+            await api.post(`/batches/${batchId}/investments`, {
+                amount: parseFloat(newInvestment.amount),
+                description: newInvestment.description,
+                from_cash: newInvestment.from_cash
+            });
+            setAddingInvestmentTo(null);
+            setNewInvestment({ amount: '', description: '', from_cash: false });
+            loadBatches();
+        } catch (error) {
+            alert('Error al agregar inversión');
         }
     };
 
@@ -203,6 +231,10 @@ const BatchPage = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-1">Inversión Total ($)</label>
                             <input type="number" value={batchInvestment} onChange={(e) => setBatchInvestment(e.target.value)}
                                 placeholder="Ej: 66700" className="w-full border p-2 rounded-md" />
+                            <div className="mt-2 flex items-center">
+                                <input type="checkbox" id="fromCash" checked={batchFromCash} onChange={(e) => setBatchFromCash(e.target.checked)} className="mr-2" />
+                                <label htmlFor="fromCash" className="text-sm text-gray-600">¿Tomado de la Caja?</label>
+                            </div>
                         </div>
                     </div>
                     <div className="mb-4">
@@ -218,9 +250,11 @@ const BatchPage = () => {
                                     <input type="text" value={p.name} onChange={(e) => updateProductRow(i, 'name', e.target.value)}
                                         placeholder="Nombre" className="flex-1 border p-2 rounded text-sm" />
                                     <input type="number" value={p.selling_price} onChange={(e) => updateProductRow(i, 'selling_price', e.target.value)}
-                                        placeholder="Precio" className="w-28 border p-2 rounded text-sm" />
+                                        placeholder="Precio" className="w-24 border p-2 rounded text-sm" />
                                     <input type="number" value={p.current_stock} onChange={(e) => updateProductRow(i, 'current_stock', e.target.value)}
                                         placeholder="Stock" className="w-20 border p-2 rounded text-sm" />
+                                    <input type="text" value={p.image_url} onChange={(e) => updateProductRow(i, 'image_url', e.target.value)}
+                                        placeholder="URL Imagen" className="w-32 border p-2 rounded text-sm" />
                                     <button onClick={() => removeProductRow(i)} className="p-2 text-red-500 hover:bg-red-50 rounded">
                                         <Trash2 size={16} />
                                     </button>
@@ -304,9 +338,13 @@ const BatchPage = () => {
 
                                 {/* Summary Cards — 2 rows */}
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-4">
-                                    <div className="text-center bg-red-50 p-3 rounded-lg">
-                                        <p className="text-xs text-gray-500">💸 Inversión</p>
-                                        <p className="font-bold text-red-600 text-lg">${parseFloat(batch.total_investment).toLocaleString()}</p>
+                                    <div className="text-center bg-red-50 p-3 rounded-lg relative group">
+                                        <p className="text-xs text-gray-500">💸 Inversión Total</p>
+                                        <p className="font-bold text-red-600 text-lg">${parseFloat(batch.total_investment_calculated || batch.total_investment).toLocaleString()}</p>
+                                        <button onClick={() => setAddingInvestmentTo(batch.id)}
+                                            className="absolute top-1 right-1 text-pink-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-pink-100 rounded">
+                                            <Plus size={14} />
+                                        </button>
                                     </div>
                                     <div className="text-center bg-green-50 p-3 rounded-lg">
                                         <p className="text-xs text-gray-500">💰 Vendido</p>
@@ -356,6 +394,7 @@ const BatchPage = () => {
                                             <thead className="bg-gray-50 text-gray-600">
                                                 <tr>
                                                     <th className="text-left p-3">Producto</th>
+                                                    <th className="text-center p-3">Imagen</th>
                                                     <th className="text-center p-3">Precio</th>
                                                     <th className="text-center p-3">Stock</th>
                                                     <th className="text-center p-3">Vendidos</th>
@@ -364,6 +403,32 @@ const BatchPage = () => {
                                                 </tr>
                                             </thead>
                                             <tbody>
+                                                {/* Add Investment Form */}
+                                                {addingInvestmentTo === batch.id && (
+                                                    <tr className="bg-pink-50 border-b border-pink-200">
+                                                        <td colSpan="7" className="p-4">
+                                                            <div className="flex gap-2 items-end">
+                                                                <div className="flex-1">
+                                                                    <label className="text-xs font-bold text-pink-700">Monto Inversión Adicional</label>
+                                                                    <input type="number" value={newInvestment.amount} onChange={e => setNewInvestment({ ...newInvestment, amount: e.target.value })}
+                                                                        className="w-full border p-2 rounded" placeholder="Ej: 5000" autoFocus />
+                                                                </div>
+                                                                <div className="flex-[2]">
+                                                                    <label className="text-xs font-bold text-pink-700">Descripción</label>
+                                                                    <input type="text" value={newInvestment.description} onChange={e => setNewInvestment({ ...newInvestment, description: e.target.value })}
+                                                                        className="w-full border p-2 rounded" placeholder="Ej: Compra extra de bolsas" />
+                                                                </div>
+                                                                <div className="flex items-center pt-5">
+                                                                    <input type="checkbox" id="investFromCash" checked={newInvestment.from_cash}
+                                                                        onChange={e => setNewInvestment({ ...newInvestment, from_cash: e.target.checked })} className="mr-1" />
+                                                                    <label htmlFor="investFromCash" className="text-xs text-gray-600">De Caja</label>
+                                                                </div>
+                                                                <button onClick={() => handleAddInvestment(batch.id)} className="bg-pink-600 text-white px-4 py-2 rounded font-bold h-10">Guardar</button>
+                                                                <button onClick={() => setAddingInvestmentTo(null)} className="text-gray-500 px-2 h-10">Cancelar</button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
                                                 {batch.Products?.map(product => (
                                                     <tr key={product.id} className="border-t">
                                                         {editingProduct === product.id ? (
@@ -371,7 +436,13 @@ const BatchPage = () => {
                                                                 <td className="p-2">
                                                                     <input type="text" value={editProductForm.name}
                                                                         onChange={(e) => setEditProductForm({ ...editProductForm, name: e.target.value })}
-                                                                        className="w-full border p-1 rounded text-sm" />
+                                                                        className="w-full border p-1 rounded text-sm mb-1" />
+                                                                    <input type="text" value={editProductForm.image_url}
+                                                                        onChange={(e) => setEditProductForm({ ...editProductForm, image_url: e.target.value })}
+                                                                        placeholder="URL Imagen" className="w-full border p-1 rounded text-xs text-gray-500" />
+                                                                </td>
+                                                                <td className="p-2 text-center">
+                                                                    {product.image_url && <img src={product.image_url} alt="" className="w-10 h-10 object-cover rounded mx-auto" />}
                                                                 </td>
                                                                 <td className="p-2">
                                                                     <input type="number" value={editProductForm.selling_price}
@@ -394,7 +465,15 @@ const BatchPage = () => {
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <td className="p-3 font-medium">{product.name}</td>
+                                                                <td className="p-3 font-medium flex items-center gap-2">
+                                                                    {product.name}
+                                                                </td>
+                                                                <td className="p-2 text-center">
+                                                                    {product.image_url ?
+                                                                        <img src={product.image_url} alt="" className="w-10 h-10 object-cover rounded mx-auto border" />
+                                                                        : <div className="w-10 h-10 bg-gray-100 rounded mx-auto flex items-center justify-center text-xs text-gray-400">IMG</div>
+                                                                    }
+                                                                </td>
                                                                 <td className="text-center p-3">${parseFloat(product.selling_price).toLocaleString()}</td>
                                                                 <td className="text-center p-3">{product.current_stock}</td>
                                                                 <td className="text-center p-3 text-green-600 font-bold">{product.units_sold || 0}</td>
@@ -424,6 +503,9 @@ const BatchPage = () => {
                                                 <input type="number" value={newProduct.current_stock}
                                                     onChange={(e) => setNewProduct({ ...newProduct, current_stock: e.target.value })}
                                                     placeholder="Stock" className="w-20 border p-2 rounded text-sm" />
+                                                <input type="text" value={newProduct.image_url}
+                                                    onChange={(e) => setNewProduct({ ...newProduct, image_url: e.target.value })}
+                                                    placeholder="URL Imagen" className="w-32 border p-2 rounded text-sm" />
                                                 <button onClick={() => handleAddProduct(batch.id)}
                                                     className="bg-green-500 text-white px-3 py-2 rounded text-sm font-bold">Agregar</button>
                                                 <button onClick={() => setAddingToBatch(null)}
@@ -438,7 +520,8 @@ const BatchPage = () => {
                                             </div>
                                         )}
                                     </div>
-                                )}
+                                )
+                                }
 
                                 {/* Expand hint */}
                                 {!isExpanded && (
@@ -453,8 +536,9 @@ const BatchPage = () => {
                         );
                     })}
                 </div>
-            )}
-        </div>
+            )
+            }
+        </div >
     );
 };
 

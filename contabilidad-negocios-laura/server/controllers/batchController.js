@@ -1,17 +1,33 @@
-const { ProductBatch, Product, SaleItem, sequelize } = require('../models');
+const { ProductBatch, Product, SaleItem, Movement, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
+// Create a new batch with its products
 // Create a new batch with its products
 exports.createBatch = async (req, res) => {
     const t = await sequelize.transaction();
     try {
-        const { name, total_investment, description, products } = req.body;
+        const { name, total_investment, description, products, from_cash } = req.body;
 
         const batch = await ProductBatch.create({
             name,
-            total_investment,
+            total_investment: 0, // Deprecated, we use Movements now. Keeping 0 for schema compatibility.
             description
         }, { transaction: t });
+
+        // Create the initial investment movement
+        if (parseFloat(total_investment) > 0) {
+            await Movement.create({
+                type: 'INVESTMENT',
+                amount: total_investment,
+                description: `Inversión inicial Lote: ${name}`,
+                date: new Date(),
+                amount: total_investment,
+                description: `Inversión inicial Lote: ${name}`,
+                date: new Date(),
+                batch_id: batch.id,
+                from_cash: from_cash || false
+            }, { transaction: t });
+        }
 
         if (products && products.length > 0) {
             for (const p of products) {
@@ -21,6 +37,7 @@ exports.createBatch = async (req, res) => {
                     selling_price: p.selling_price,
                     current_stock: p.current_stock || 0,
                     min_stock_alert: p.min_stock_alert || 5,
+                    image_url: p.image_url,
                     batch_id: batch.id
                 }, { transaction: t });
             }
@@ -29,7 +46,7 @@ exports.createBatch = async (req, res) => {
         await t.commit();
 
         const fullBatch = await ProductBatch.findByPk(batch.id, {
-            include: [Product]
+            include: [Product, Movement]
         });
 
         res.status(201).json(fullBatch);
@@ -40,6 +57,7 @@ exports.createBatch = async (req, res) => {
     }
 };
 
+// Helper: calculate batch totals
 // Helper: calculate batch totals
 function calcBatchTotals(batchData) {
     let totalRevenue = 0;
@@ -67,20 +85,25 @@ function calcBatchTotals(batchData) {
         };
     });
 
-    const investment = parseFloat(batchData.total_investment);
+    // Calculate total investment from Movements + Legacy field
+    const investmentMovements = batchData.Movements?.reduce((sum, m) => sum + parseFloat(m.amount), 0) || 0;
+    const legacyInvestment = parseFloat(batchData.total_investment) || 0;
+    const total_investment = investmentMovements + legacyInvestment;
+
     return {
         ...batchData,
+        total_investment_calculated: total_investment, // Send back specific calc
         totalRevenue,
         totalUnitsSold,
         totalUnitsInStock,
         potentialRevenue,
-        profit: totalRevenue - investment,
-        projectedProfit: potentialRevenue - investment,
+        profit: totalRevenue - total_investment,
+        projectedProfit: potentialRevenue - total_investment,
         profitPercentage: totalRevenue > 0
-            ? (((totalRevenue - investment) / investment) * 100).toFixed(1)
+            ? (((totalRevenue - total_investment) / total_investment) * 100).toFixed(1)
             : 0,
         projectedProfitPercentage: potentialRevenue > 0
-            ? (((potentialRevenue - investment) / investment) * 100).toFixed(1)
+            ? (((potentialRevenue - total_investment) / total_investment) * 100).toFixed(1)
             : 0
     };
 }
@@ -95,6 +118,8 @@ exports.getAllBatches = async (req, res) => {
                     model: SaleItem,
                     attributes: ['quantity', 'unit_price_at_sale', 'total']
                 }]
+            }, {
+                model: Movement // Include investments
             }],
             order: [['createdAt', 'DESC']]
         });
@@ -117,6 +142,8 @@ exports.getBatch = async (req, res) => {
                     model: SaleItem,
                     attributes: ['quantity', 'unit_price_at_sale', 'total']
                 }]
+            }, {
+                model: Movement
             }]
         });
 
@@ -154,7 +181,7 @@ exports.updateBatch = async (req, res) => {
 exports.addProductToBatch = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, selling_price, current_stock, min_stock_alert } = req.body;
+        const { name, selling_price, current_stock, min_stock_alert, image_url } = req.body;
 
         const batch = await ProductBatch.findByPk(id);
         if (!batch) return res.status(404).json({ error: 'Lote no encontrado' });
@@ -165,12 +192,38 @@ exports.addProductToBatch = async (req, res) => {
             selling_price,
             current_stock: current_stock || 0,
             min_stock_alert: min_stock_alert || 5,
+            image_url,
             batch_id: id
         });
 
         res.status(201).json(product);
     } catch (error) {
         console.error('Error adding product to batch:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Add investment to existing batch
+exports.addInvestmentToBatch = async (req, res) => {
+    try {
+        const { id } = req.params; // Batch ID
+        const { amount, description, from_cash } = req.body;
+
+        const batch = await ProductBatch.findByPk(id);
+        if (!batch) return res.status(404).json({ error: 'Lote no encontrado' });
+
+        const investment = await Movement.create({
+            type: 'INVESTMENT',
+            amount,
+            description: description || `Inversión adicional Lote: ${batch.name}`,
+            date: new Date(),
+            batch_id: id,
+            from_cash: from_cash || false
+        });
+
+        res.status(201).json(investment);
+    } catch (error) {
+        console.error('Error adding investment:', error);
         res.status(500).json({ error: error.message });
     }
 };
@@ -189,7 +242,8 @@ exports.updateBatchProduct = async (req, res) => {
         await product.update({
             name: name || product.name,
             selling_price: selling_price !== undefined ? selling_price : product.selling_price,
-            current_stock: current_stock !== undefined ? current_stock : product.current_stock
+            current_stock: current_stock !== undefined ? current_stock : product.current_stock,
+            image_url: req.body.image_url !== undefined ? req.body.image_url : product.image_url
         });
 
         res.json(product);

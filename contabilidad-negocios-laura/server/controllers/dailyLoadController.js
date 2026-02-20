@@ -1,18 +1,41 @@
-const { DailyLoad, DailyLoadItem, Product, Movement, SaleItem, sequelize } = require('../models');
+const { DailyLoad, DailyLoadItem, Product, Movement, SaleItem, InventoryMovement, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 // Create a new daily load
 exports.createDailyLoad = async (req, res) => {
     const t = await sequelize.transaction();
     try {
-        const { items } = req.body;
+        const { items, date } = req.body;
 
         if (!items || items.length === 0) {
             return res.status(400).json({ error: 'Debes seleccionar al menos un producto' });
         }
 
+        // If date is provided, use it directly as string if possible to avoid timezone shifts
+        // If not, use local date string for today
+        let loadDate = date;
+        if (!loadDate) {
+            const now = new Date();
+            loadDate = now.toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
+        }
+
+        // Check if load already exists for this date
+        const existingLoad = await DailyLoad.findOne({
+            where: {
+                where: {
+                    date: loadDate
+                },
+            },
+            transaction: t
+        });
+
+        if (existingLoad) {
+            await t.rollback();
+            return res.status(400).json({ error: 'Ya existe una carga para esta fecha' });
+        }
+
         const load = await DailyLoad.create({
-            date: new Date(),
+            date: loadDate,
             status: 'OPEN'
         }, { transaction: t });
 
@@ -32,6 +55,16 @@ exports.createDailyLoad = async (req, res) => {
 
             product.current_stock -= parseInt(item.quantity_taken);
             await product.save({ transaction: t });
+
+            // Log Movement (OUT to Daily Load)
+            await InventoryMovement.create({
+                type: 'OUT',
+                quantity: parseInt(item.quantity_taken),
+                reason: `Carga del Día`, // We will append ID later or just keep generic. Usually ID is better but we don't have load.id inside loop? Ah load is created above.
+                balance_after: product.current_stock,
+                product_id: product.id,
+                reference_id: load.id
+            }, { transaction: t });
 
             await DailyLoadItem.create({
                 daily_load_id: load.id,
@@ -57,13 +90,23 @@ exports.createDailyLoad = async (req, res) => {
     }
 };
 
-// Get today's open load
+// Get load by date (defaults to today's open load)
 exports.getTodayLoad = async (req, res) => {
     try {
-        const today = new Date().toISOString().split('T')[0];
+        // If date is provided in query, use it. Otherwise use today.
+        // Format: YYYY-MM-DD
+        const dateQuery = req.query.date;
+        const today = new Date().toLocaleDateString('en-CA'); // Local YYYY-MM-DD
+
+        const searchDate = dateQuery || today;
+
+        let whereClause = { date: searchDate };
+
+        // If searching for today, prioritize OPEN status, but show CLOSED if no OPEN exists
+        // If searching for past dates, just show whatever exists (likely CLOSED)
 
         let load = await DailyLoad.findOne({
-            where: { date: today, status: 'OPEN' },
+            where: whereClause,
             include: [{ model: DailyLoadItem, include: [Product] }],
             order: [['createdAt', 'DESC']]
         });
@@ -71,7 +114,7 @@ exports.getTodayLoad = async (req, res) => {
         if (!load) return res.json(null);
         res.json(load);
     } catch (error) {
-        console.error('Error getting today load:', error);
+        console.error('Error getting load:', error);
         res.status(500).json({ error: error.message });
     }
 };
@@ -208,6 +251,16 @@ exports.closeDailyLoad = async (req, res) => {
                 const product = await Product.findByPk(item.product_id, { transaction: t });
                 product.current_stock += returned;
                 await product.save({ transaction: t });
+
+                // Log Movement (IN from Daily Load Return)
+                await InventoryMovement.create({
+                    type: 'IN',
+                    quantity: returned,
+                    reason: `Retorno Carga #${load.id}`,
+                    balance_after: product.current_stock,
+                    product_id: product.id,
+                    reference_id: load.id
+                }, { transaction: t });
             }
         }
 

@@ -10,12 +10,26 @@ export const getDailyBalance = async () => {
     return response.data;
 };
 
+export const getGlobalBalance = async () => {
+    const response = await api.get('/accounting/global-balance');
+    return response.data;
+};
+
 export const performCashCut = async (data) => {
     const response = await api.post('/accounting/cash-cut', data);
     return response.data;
 };
 
 export const downloadReport = () => {
-    // Direct link trigger for file download
     window.open('http://localhost:5000/api/accounting/export', '_blank');
+};
+
+export const getProfitReport = async (startDate, endDate) => {
+    const response = await api.get('/accounting/profit-report', { params: { startDate, endDate } });
+    return response.data;
+};
+
+export const getProductStats = async (startDate, endDate) => {
+    const response = await api.get('/accounting/product-stats', { params: { startDate, endDate } });
+    return response.data;
 };

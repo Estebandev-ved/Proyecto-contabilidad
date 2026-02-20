@@ -7,6 +7,7 @@ const CashCut = require('./CashCut');
 const DailyLoad = require('./DailyLoad');
 const DailyLoadItem = require('./DailyLoadItem');
 const ProductBatch = require('./ProductBatch');
+const InventoryMovement = require('./InventoryMovement');
 
 // Relationships
 
@@ -17,6 +18,10 @@ Product.belongsTo(Category, { foreignKey: { name: 'category_id', allowNull: true
 // ProductBatch has many Products
 ProductBatch.hasMany(Product, { foreignKey: { name: 'batch_id', allowNull: true } });
 Product.belongsTo(ProductBatch, { foreignKey: { name: 'batch_id', allowNull: true } });
+
+// ProductBatch has many Movements (Investments)
+ProductBatch.hasMany(Movement, { foreignKey: { name: 'batch_id', allowNull: true } });
+Movement.belongsTo(ProductBatch, { foreignKey: { name: 'batch_id', allowNull: true } });
 
 // Movement (Sale) has many SaleItems
 Movement.hasMany(SaleItem, { foreignKey: 'movement_id' });
@@ -34,6 +39,10 @@ DailyLoadItem.belongsTo(DailyLoad, { foreignKey: 'daily_load_id' });
 Product.hasMany(DailyLoadItem, { foreignKey: 'product_id' });
 DailyLoadItem.belongsTo(Product, { foreignKey: 'product_id' });
 
+// Inventory History
+Product.hasMany(InventoryMovement, { foreignKey: 'product_id' });
+InventoryMovement.belongsTo(Product, { foreignKey: 'product_id' });
+
 module.exports = {
     sequelize,
     Category,
@@ -43,5 +52,6 @@ module.exports = {
     CashCut,
     DailyLoad,
     DailyLoadItem,
-    ProductBatch
+    ProductBatch,
+    InventoryMovement
 };

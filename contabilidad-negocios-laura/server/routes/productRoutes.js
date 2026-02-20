@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const productController = require('../controllers/productController');
+const kardexController = require('../controllers/kardexController');
 const multer = require('multer');
 const path = require('path');
 
@@ -16,6 +17,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+router.get('/history', kardexController.getMovementHistory);
 router.get('/', productController.getAllProducts);
 router.post('/', upload.single('image'), productController.createProduct);
 router.put('/:id', upload.single('image'), productController.updateProduct);

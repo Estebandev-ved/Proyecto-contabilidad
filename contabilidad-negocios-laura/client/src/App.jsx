@@ -5,6 +5,7 @@ import SalesPage from './pages/SalesPage';
 import AccountingPage from './pages/AccountingPage';
 import DailyLoadPage from './pages/DailyLoadPage';
 import BatchPage from './pages/BatchPage';
+import InvoicePrintPage from './pages/InvoicePrintPage';
 import { ShoppingCart, Package, DollarSign, Truck, Layers } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -42,6 +43,7 @@ function App() {
             <Route path="/carga" element={<DailyLoadPage />} />
             <Route path="/ventas" element={<SalesPage />} />
             <Route path="/finanzas" element={<AccountingPage />} />
+            <Route path="/factura/:id" element={<InvoicePrintPage />} />
             <Route path="/" element={
               <div className="text-center p-10">
                 <h2 className="text-3xl font-bold text-gray-800">Bienvenido</h2>

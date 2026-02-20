@@ -32,3 +32,8 @@ export const updateStock = async (id, quantity, type) => {
     const response = await api.put(`/products/${id}/stock`, { quantity, type });
     return response.data;
 };
+
+export const getMovementHistory = async (filters) => {
+    const response = await api.get('/products/history', { params: filters });
+    return response.data;
+};

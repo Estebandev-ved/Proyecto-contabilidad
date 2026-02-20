@@ -40,12 +40,50 @@ exports.getDailyBalance = async (req, res) => {
             }
         }) || 0;
 
-        const expectedCash = sales - expenses;
+        const cashInvestments = await Movement.sum('amount', {
+            where: {
+                type: 'INVESTMENT',
+                from_cash: true,
+                date: { [Op.between]: [todayStart, todayEnd] }
+            }
+        }) || 0;
 
-        res.json({ sales, expenses, expectedCash });
+        const expectedCash = sales - expenses - cashInvestments;
+
+        res.json({ sales, expenses, cashInvestments, expectedCash });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Error obteniendo balance' });
+    }
+};
+
+
+// 2.5. Obtener Balance Global (Histórico)
+exports.getGlobalBalance = async (req, res) => {
+    try {
+        const totalSales = await Movement.sum('amount', {
+            where: { type: 'SALE' }
+        }) || 0;
+
+        const totalExpenses = await Movement.sum('amount', {
+            where: { type: { [Op.in]: ['EXPENSE', 'WITHDRAWAL'] } }
+        }) || 0;
+
+        const totalInvestmentsFromCash = await Movement.sum('amount', {
+            where: { type: 'INVESTMENT', from_cash: true }
+        }) || 0;
+
+        const currentCash = totalSales - totalExpenses - totalInvestmentsFromCash;
+
+        res.json({
+            totalSales,
+            totalExpenses,
+            totalInvestmentsFromCash,
+            currentCash
+        });
+    } catch (error) {
+        console.error('Error getting global balance:', error);
+        res.status(500).json({ error: 'Error obteniendo balance global' });
     }
 };
 

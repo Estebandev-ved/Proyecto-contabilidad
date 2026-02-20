@@ -7,6 +7,7 @@ router.get('/', ctrl.getAllBatches);
 router.get('/:id', ctrl.getBatch);
 router.put('/:id', ctrl.updateBatch);
 router.post('/:id/products', ctrl.addProductToBatch);
+router.post('/:id/investments', ctrl.addInvestmentToBatch);
 router.put('/:id/products/:productId', ctrl.updateBatchProduct);
 router.delete('/:id/products/:productId', ctrl.removeProductFromBatch);
 router.delete('/:id', ctrl.deleteBatch);

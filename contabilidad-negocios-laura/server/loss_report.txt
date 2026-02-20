@@ -1,0 +1,7 @@
+LOSS REPORT:
+[LOSS] Product: Paleta chamoy | Qty: 8 | SalePrice: 1500 | Cost: 20000 | Profit/Unit: -18500.00 | Total Loss on Item: -148000.00
+[LOSS] Product: picafresas | Qty: 9 | SalePrice: 700 | Cost: 32150 | Profit/Unit: -31450.00 | Total Loss on Item: -283050.00
+[LOSS] Product: Paleta chamoy | Qty: 7 | SalePrice: 1500 | Cost: 20000 | Profit/Unit: -18500.00 | Total Loss on Item: -129500.00
+[LOSS] Product: Paleta zandi champoy | Qty: 5 | SalePrice: 1500 | Cost: 16910 | Profit/Unit: -15410.00 | Total Loss on Item: -77050.00
+[LOSS] Product: Paleta chamoy | Qty: 6 | SalePrice: 1500 | Cost: 20000 | Profit/Unit: -18500.00 | Total Loss on Item: -111000.00
+Total Calculated Loss from these items: 748600.00

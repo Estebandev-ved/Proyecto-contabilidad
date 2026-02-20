@@ -10,16 +10,22 @@ const DailyLoadPage = () => {
     const [loading, setLoading] = useState(true);
     const [tab, setTab] = useState('load'); // load, sell, summary
 
-    useEffect(() => {
-        init();
-    }, []);
+    const [selectedDate, setSelectedDate] = useState(() => {
+        return localStorage.getItem('dailyLoadDate') || new Date().toISOString().split('T')[0];
+    });
 
-    const init = async () => {
+    useEffect(() => {
+        localStorage.setItem('dailyLoadDate', selectedDate);
+        setLoadForm({});
+        loadData(selectedDate);
+    }, [selectedDate]);
+
+    const loadData = async (date) => {
         setLoading(true);
         try {
             const [prods, loadRes] = await Promise.all([
                 getProducts(),
-                api.get('/daily-loads/today')
+                api.get(`/daily-loads/today?date=${date}`)
             ]);
             setProducts(prods);
             setTodayLoad(loadRes.data);
@@ -55,7 +61,7 @@ const DailyLoadPage = () => {
         }
 
         try {
-            const res = await api.post('/daily-loads', { items });
+            const res = await api.post('/daily-loads', { items, date: selectedDate });
             setTodayLoad(res.data);
             setLoadForm({});
             setTab('sell');
@@ -123,15 +129,28 @@ const DailyLoadPage = () => {
 
     return (
         <div className="max-w-5xl mx-auto">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800 flex items-center gap-2">
-                <Truck className="text-pink-600" /> Carga del Día
-            </h2>
+
+            <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    <Truck className="text-pink-600" /> Carga del Día
+                </h2>
+                <div className="flex items-center gap-2 bg-white p-2 rounded-lg shadow-sm border">
+                    <Clock size={16} className="text-gray-500" />
+                    <span className="text-sm font-medium text-gray-600">Fecha:</span>
+                    <input
+                        type="date"
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        className="outline-none text-gray-800 font-bold"
+                    />
+                </div>
+            </div>
 
             {/* Status Banner */}
             {todayLoad && (
                 <div className={`mb-4 p-3 rounded-lg text-sm font-medium flex items-center gap-2 ${todayLoad.status === 'OPEN'
-                        ? 'bg-green-50 border border-green-200 text-green-800'
-                        : 'bg-gray-50 border border-gray-200 text-gray-600'
+                    ? 'bg-green-50 border border-green-200 text-green-800'
+                    : 'bg-gray-50 border border-gray-200 text-gray-600'
                     }`}>
                     {todayLoad.status === 'OPEN' ? (
                         <><CheckCircle2 size={18} /> Carga abierta — {todayLoad.DailyLoadItems?.length || 0} productos cargados</>
@@ -159,7 +178,7 @@ const DailyLoadPage = () => {
                 <div>
                     {todayLoad && todayLoad.status === 'OPEN' ? (
                         <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg text-yellow-800">
-                            <p className="font-bold">Ya tienes una carga abierta hoy.</p>
+                            <p className="font-bold">Ya tienes una carga abierta para esta fecha.</p>
                             <p className="text-sm mt-1">Ve a la pestaña "Vender" para registrar ventas, o "Resumen" para ver el estado.</p>
                         </div>
                     ) : (
@@ -211,8 +230,14 @@ const DailyLoadPage = () => {
                                 <div className="mt-6 bg-white p-4 rounded-lg shadow-md sticky bottom-4">
                                     <div className="flex justify-between items-center">
                                         <div>
-                                            <span className="font-bold text-gray-700">
+                                            <span className="font-bold text-gray-700 block">
                                                 {Object.values(loadForm).reduce((a, b) => a + b, 0)} unidades de {Object.keys(loadForm).length} productos
+                                            </span>
+                                            <span className="text-sm text-green-600 font-bold">
+                                                Valor Estimado: ${Object.entries(loadForm).reduce((total, [pid, qty]) => {
+                                                    const prod = products.find(p => p.id === parseInt(pid));
+                                                    return total + (qty * (parseFloat(prod?.selling_price) || 0));
+                                                }, 0).toLocaleString()}
                                             </span>
                                         </div>
                                         <button
@@ -344,6 +369,12 @@ const DailyLoadPage = () => {
                                     </p>
                                 </div>
                                 <div className="bg-white p-4 rounded-lg shadow text-center">
+                                    <p className="text-xs text-gray-500">Valor Total Carga</p>
+                                    <p className="font-bold text-lg text-purple-600">
+                                        ${todayLoad.DailyLoadItems?.reduce((s, i) => s + (i.quantity_taken * parseFloat(i.unit_price)), 0).toLocaleString()}
+                                    </p>
+                                </div>
+                                <div className="bg-white p-4 rounded-lg shadow text-center">
                                     <p className="text-xs text-gray-500">Total Vendido</p>
                                     <p className="font-bold text-lg text-green-600">${parseFloat(todayLoad.total_sold).toFixed(2)}</p>
                                 </div>
@@ -399,6 +430,7 @@ const DailyLoadPage = () => {
                                     <li>Al crear la carga, se descuentan las unidades del stock principal.</li>
                                     <li>Registra cada venta durante el día.</li>
                                     <li>Al "Cerrar Día", todo lo que no se vendió regresa automáticamente al stock.</li>
+                                    <li>"Valor Total Carga" es lo que ganarías si vendes TODO lo que cargaste.</li>
                                     <li>El total vendido se refleja en Finanzas → Corte de Caja.</li>
                                 </ul>
                             </div>

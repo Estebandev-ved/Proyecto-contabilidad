@@ -14,3 +14,8 @@ export const createSale = async (items) => {
     });
     return response.data;
 };
+
+export const getSaleById = async (id) => {
+    const response = await api.get(`/sales/${id}`);
+    return response.data;
+};

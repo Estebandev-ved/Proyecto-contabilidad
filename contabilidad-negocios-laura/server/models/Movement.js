@@ -17,6 +17,18 @@ const Movement = sequelize.define('Movement', {
     description: {
         type: DataTypes.TEXT,
         allowNull: true,
+    },
+    batch_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+            model: 'ProductBatches',
+            key: 'id'
+        }
+    },
+    from_cash: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false
     }
 });
 

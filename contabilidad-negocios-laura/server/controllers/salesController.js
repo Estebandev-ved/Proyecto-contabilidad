@@ -1,4 +1,4 @@
-const { Movement, SaleItem, Product, sequelize } = require('../models');
+const { Movement, SaleItem, Product, InventoryMovement, sequelize } = require('../models');
 
 exports.createSale = async (req, res) => {
     const t = await sequelize.transaction();
@@ -27,6 +27,16 @@ exports.createSale = async (req, res) => {
             // Deduct stock
             await product.update({
                 current_stock: product.current_stock - item.quantity
+            }, { transaction: t });
+
+            // Log Movement (OUT)
+            await InventoryMovement.create({
+                type: 'OUT',
+                quantity: item.quantity,
+                reason: `Venta #${sale.id}`,
+                balance_after: product.current_stock,
+                product_id: product.id,
+                reference_id: sale.id
             }, { transaction: t });
 
             // Record item in sale
@@ -62,5 +72,23 @@ exports.getSales = async (req, res) => {
         res.json(sales);
     } catch (error) {
         res.status(500).json({ error: 'Error obteniendo ventas' });
+    }
+};
+
+exports.getSaleById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const sale = await Movement.findByPk(id, {
+            include: [{
+                model: SaleItem,
+                include: [Product]
+            }]
+        });
+
+        if (!sale) return res.status(404).json({ error: 'Venta no encontrada' });
+
+        res.json(sale);
+    } catch (error) {
+        res.status(500).json({ error: 'Error obteniendo venta' });
     }
 };
